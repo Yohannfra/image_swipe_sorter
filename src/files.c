@@ -24,7 +24,7 @@ static int is_image_file(const char *filename)
     return 0;
 }
 
-int parse_args(int argc, char *argv[], Config *config)
+int parse_args(int argc, char *const argv[const], Config *config)
 {
     memset(config, 0, sizeof(Config));
 
@@ -93,7 +93,7 @@ int load_image_list(const char *dir_path, ImageList *list)
     list->count = 0;
     list->current = 0;
 
-    struct dirent *entry;
+    const struct dirent *entry;
     while ((entry = readdir(dir)) != NULL && list->count < MAX_IMAGES) {
         if (entry->d_name[0] == '.')
             continue;
@@ -123,7 +123,7 @@ void free_image_list(ImageList *list)
 int move_file(const char *src, const char *dest_dir, char *out_dest_path)
 {
     char *src_copy = strdup(src);
-    char *filename = basename(src_copy);
+    const char *filename = basename(src_copy);
 
     char dest_path[MAX_PATH];
     snprintf(dest_path, MAX_PATH, "%s/%s", dest_dir, filename);

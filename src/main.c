@@ -78,6 +78,9 @@ int main(int argc, char *argv[])
     MoveHistory history;
     history_init(&history);
 
+    int left_count = 0;
+    int right_count = 0;
+
     int running = 1;
     SDL_Event event;
 
@@ -189,8 +192,10 @@ int main(int argc, char *argv[])
                         if (images.current < images.count) {
                             char dest_path[MAX_PATH];
                             if (move_file(images.paths[images.current], config.left_dir, dest_path) == 0) {
-                                history_push(&history, images.paths[images.current], dest_path, images.current);
+                                history_push(
+                                    &history, images.paths[images.current], dest_path, images.current, -1);
                                 images.current++;
+                                left_count++;
                                 need_load = 1;
                             }
                         }
@@ -200,8 +205,9 @@ int main(int argc, char *argv[])
                         if (images.current < images.count) {
                             char dest_path[MAX_PATH];
                             if (move_file(images.paths[images.current], config.right_dir, dest_path) == 0) {
-                                history_push(&history, images.paths[images.current], dest_path, images.current);
+                                history_push(&history, images.paths[images.current], dest_path, images.current, 1);
                                 images.current++;
+                                right_count++;
                                 need_load = 1;
                             }
                         }
@@ -218,6 +224,10 @@ int main(int argc, char *argv[])
                         if (history_pop(&history, &entry) == 0) {
                             if (undo_move_file(entry.dest_path, entry.src_path) == 0) {
                                 images.current = entry.image_index;
+                                if (entry.direction < 0)
+                                    left_count--;
+                                else
+                                    right_count--;
                                 need_load = 1;
                             }
                         }
@@ -273,14 +283,19 @@ int main(int argc, char *argv[])
         int text_y = win_height - 25;
         int text_scale = 2;
 
+        char left_label[32];
+        snprintf(left_label, sizeof(left_label), "<- LEFT (%d)", left_count);
         SDL_SetRenderDrawColor(renderer, 200, 100, 100, 255);
-        render_text(renderer, "<- LEFT", 15, text_y, text_scale);
+        render_text(renderer, left_label, 15, text_y, text_scale);
 
         SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
         render_text(renderer, "DOWN:SKIP  SPACE:UNDO", win_width / 2 - 120, text_y, text_scale);
 
+        char right_label[32];
+        snprintf(right_label, sizeof(right_label), "(%d) RIGHT ->", right_count);
+        int right_label_width = strlen(right_label) * 6 * text_scale;
         SDL_SetRenderDrawColor(renderer, 100, 200, 100, 255);
-        render_text(renderer, "RIGHT ->", win_width - 130, text_y, text_scale);
+        render_text(renderer, right_label, win_width - 15 - right_label_width, text_y, text_scale);
 
         /* Progress bar */
         int progress_width = win_width - 20;

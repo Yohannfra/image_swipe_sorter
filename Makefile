@@ -9,7 +9,7 @@ OBJDIR = obj
 SRC = $(wildcard $(SRCDIR)/*.c)
 OBJ = $(SRC:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
-.PHONY: all clean format re
+.PHONY: all clean format lint re
 
 all: $(TARGET)
 
@@ -27,5 +27,8 @@ clean:
 
 format:
 	clang-format -i $(SRCDIR)/*.c $(SRCDIR)/*.h
+
+lint:
+	cppcheck --enable=all --suppress=missingIncludeSystem --suppress=constParameter $(SRCDIR)
 
 re: clean all

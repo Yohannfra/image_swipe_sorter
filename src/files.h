@@ -4,7 +4,7 @@
 #include "types.h"
 
 /* Parse command line arguments and populate config */
-int parse_args(int argc, char *argv[], Config *config);
+int parse_args(int argc, char *const argv[const], Config *config);
 
 /* Load list of image files from directory */
 int load_image_list(const char *dir_path, ImageList *list);
