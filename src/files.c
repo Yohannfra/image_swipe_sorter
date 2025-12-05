@@ -136,7 +136,7 @@ int move_file(const char *src, const char *dest_dir, char *out_dest_path)
 
     printf("Moved: %s -> %s\n", filename, dest_dir);
     if (out_dest_path) {
-        strncpy(out_dest_path, dest_path, MAX_PATH - 1);
+        snprintf(out_dest_path, MAX_PATH, "%s", dest_path);
     }
     free(src_copy);
     return 0;
