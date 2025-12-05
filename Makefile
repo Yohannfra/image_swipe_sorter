@@ -9,7 +9,7 @@ OBJDIR = obj
 SRC = $(wildcard $(SRCDIR)/*.c)
 OBJ = $(SRC:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
-.PHONY: all clean format
+.PHONY: all clean format re
 
 all: $(TARGET)
 
@@ -27,3 +27,5 @@ clean:
 
 format:
 	clang-format -i $(SRCDIR)/*.c $(SRCDIR)/*.h
+
+re: clean all
