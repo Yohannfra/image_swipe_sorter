@@ -9,7 +9,10 @@ OBJDIR = obj
 SRC = $(wildcard $(SRCDIR)/*.c)
 OBJ = $(SRC:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
-.PHONY: all clean format lint re
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+
+.PHONY: all clean format lint re install uninstall
 
 all: $(TARGET)
 
@@ -32,3 +35,10 @@ lint:
 	cppcheck --enable=all --suppress=missingIncludeSystem --suppress=constParameter $(SRCDIR)
 
 re: clean all
+
+install: $(TARGET)
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 755 $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
