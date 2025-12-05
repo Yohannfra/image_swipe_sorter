@@ -97,96 +97,97 @@ static int move_file(const char *src, const char *dest_dir)
     return 0;
 }
 
-static void render_text_simple(SDL_Renderer *renderer, const char *text, int x, int y, SDL_Color color, int scale)
+/* 5x7 bitmap font for basic characters */
+static const unsigned char font_5x7[128][7] = {
+    ['<'] = {0x04, 0x08, 0x10, 0x08, 0x04, 0x00, 0x00},
+    ['>'] = {0x10, 0x08, 0x04, 0x08, 0x10, 0x00, 0x00},
+    ['-'] = {0x00, 0x00, 0x1F, 0x00, 0x00, 0x00, 0x00},
+    ['A'] = {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x00},
+    ['C'] = {0x0E, 0x11, 0x10, 0x10, 0x11, 0x0E, 0x00},
+    ['D'] = {0x1E, 0x11, 0x11, 0x11, 0x11, 0x1E, 0x00},
+    ['E'] = {0x1F, 0x10, 0x1E, 0x10, 0x10, 0x1F, 0x00},
+    ['F'] = {0x1F, 0x10, 0x1E, 0x10, 0x10, 0x10, 0x00},
+    ['G'] = {0x0E, 0x11, 0x10, 0x17, 0x11, 0x0E, 0x00},
+    ['H'] = {0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x00},
+    ['I'] = {0x0E, 0x04, 0x04, 0x04, 0x04, 0x0E, 0x00},
+    ['K'] = {0x11, 0x12, 0x1C, 0x12, 0x11, 0x11, 0x00},
+    ['L'] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x1F, 0x00},
+    ['N'] = {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x00},
+    ['O'] = {0x0E, 0x11, 0x11, 0x11, 0x11, 0x0E, 0x00},
+    ['P'] = {0x1E, 0x11, 0x1E, 0x10, 0x10, 0x10, 0x00},
+    ['R'] = {0x1E, 0x11, 0x1E, 0x14, 0x12, 0x11, 0x00},
+    ['S'] = {0x0E, 0x10, 0x0E, 0x01, 0x01, 0x0E, 0x00},
+    ['T'] = {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x00},
+    ['W'] = {0x11, 0x11, 0x11, 0x15, 0x15, 0x0A, 0x00},
+    ['/'] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00},
+    [':'] = {0x00, 0x04, 0x00, 0x00, 0x04, 0x00, 0x00},
+    ['0'] = {0x0E, 0x13, 0x15, 0x19, 0x11, 0x0E, 0x00},
+    ['1'] = {0x04, 0x0C, 0x04, 0x04, 0x04, 0x0E, 0x00},
+    ['2'] = {0x0E, 0x11, 0x02, 0x04, 0x08, 0x1F, 0x00},
+    ['3'] = {0x0E, 0x01, 0x06, 0x01, 0x11, 0x0E, 0x00},
+    ['4'] = {0x02, 0x06, 0x0A, 0x1F, 0x02, 0x02, 0x00},
+    ['5'] = {0x1F, 0x10, 0x1E, 0x01, 0x11, 0x0E, 0x00},
+    ['6'] = {0x0E, 0x10, 0x1E, 0x11, 0x11, 0x0E, 0x00},
+    ['7'] = {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x00},
+    ['8'] = {0x0E, 0x11, 0x0E, 0x11, 0x11, 0x0E, 0x00},
+    ['9'] = {0x0E, 0x11, 0x0F, 0x01, 0x11, 0x0E, 0x00},
+};
+
+static void render_text(SDL_Renderer *renderer, const char *text, int x, int y, int scale)
 {
-    /* Simple bitmap-style text rendering without SDL_ttf */
-    /* Each character is rendered as a small rectangle pattern */
-    int char_width = 8 * scale;
-    int char_height = 12 * scale;
-
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-
+    int cursor_x = x;
     for (int i = 0; text[i]; i++) {
-        int cx = x + i * (char_width + 2 * scale);
-        /* Draw a simple block for each character */
-        SDL_Rect r = {cx, y, char_width, char_height};
-
-        /* Simple character patterns */
-        char c = text[i];
-        if (c == ' ')
+        unsigned char c = (unsigned char)text[i];
+        if (c == ' ') {
+            cursor_x += 6 * scale;
             continue;
-
-        /* Draw filled rectangle for simplicity */
-        SDL_RenderFillRect(renderer, &r);
+        }
+        if (c < 128) {
+            for (int row = 0; row < 7; row++) {
+                unsigned char bits = font_5x7[c][row];
+                for (int col = 0; col < 5; col++) {
+                    if (bits & (0x10 >> col)) {
+                        SDL_Rect pixel = {cursor_x + col * scale, y + row * scale, scale, scale};
+                        SDL_RenderFillRect(renderer, &pixel);
+                    }
+                }
+            }
+        }
+        cursor_x += 6 * scale;
     }
 }
 
 static void render_arrow(SDL_Renderer *renderer, int x, int y, int size, int direction)
 {
     /* direction: -1 = left, 1 = right */
-    SDL_Point points[7];
     int half = size / 2;
-    int third = size / 3;
+    int shaft_height = size / 3;
 
     if (direction < 0) {
-        /* Left arrow */
-        points[0] = (SDL_Point){x, y};
-        points[1] = (SDL_Point){x + half, y - half};
-        points[2] = (SDL_Point){x + half, y - third};
-        points[3] = (SDL_Point){x + size, y - third};
-        points[4] = (SDL_Point){x + size, y + third};
-        points[5] = (SDL_Point){x + half, y + third};
-        points[6] = (SDL_Point){x + half, y + half};
-    } else {
-        /* Right arrow */
-        points[0] = (SDL_Point){x + size, y};
-        points[1] = (SDL_Point){x + half, y - half};
-        points[2] = (SDL_Point){x + half, y - third};
-        points[3] = (SDL_Point){x, y - third};
-        points[4] = (SDL_Point){x, y + third};
-        points[5] = (SDL_Point){x + half, y + third};
-        points[6] = (SDL_Point){x + half, y + half};
-    }
-
-    /* Draw filled arrow using lines */
-    for (int i = 0; i < 6; i++) {
-        SDL_RenderDrawLine(renderer, points[i].x, points[i].y, points[i + 1].x, points[i + 1].y);
-    }
-    SDL_RenderDrawLine(renderer, points[6].x, points[6].y, points[0].x, points[0].y);
-
-    /* Fill the arrow */
-    for (int row = y - half; row <= y + half; row++) {
-        int left_bound = -1, right_bound = -1;
-        for (int col = x; col <= x + size; col++) {
-            int inside = 0;
-            /* Simple point-in-polygon for arrow */
-            if (direction < 0) {
-                /* Left arrow fill logic */
-                int rel_x = col - x;
-                int rel_y = row - y;
-                if (rel_x >= half) {
-                    inside = (abs(rel_y) <= third);
-                } else {
-                    inside = (abs(rel_y) <= (half - rel_x));
-                }
-            } else {
-                /* Right arrow fill logic */
-                int rel_x = x + size - col;
-                int rel_y = row - y;
-                if (rel_x >= half) {
-                    inside = (abs(rel_y) <= third);
-                } else {
-                    inside = (abs(rel_y) <= (half - rel_x));
-                }
-            }
-            if (inside) {
-                if (left_bound < 0)
-                    left_bound = col;
-                right_bound = col;
+        /* Left arrow: point at left, shaft extends right */
+        /* Triangle: point at x, base at x+half */
+        for (int row = -half; row <= half; row++) {
+            int width = half - abs(row);
+            if (width > 0) {
+                /* Draw from (x + half - width) to (x + half) */
+                SDL_RenderDrawLine(renderer, x + half - width, y + row, x + half, y + row);
             }
         }
-        if (left_bound >= 0) {
-            SDL_RenderDrawLine(renderer, left_bound, row, right_bound, row);
+        /* Draw shaft rectangle to the right of triangle */
+        SDL_Rect shaft = {x + half, y - shaft_height, half, shaft_height * 2};
+        SDL_RenderFillRect(renderer, &shaft);
+    } else {
+        /* Right arrow: shaft on left, point at right */
+        /* Draw shaft rectangle */
+        SDL_Rect shaft = {x, y - shaft_height, half, shaft_height * 2};
+        SDL_RenderFillRect(renderer, &shaft);
+        /* Triangle: base at x+half, point at x+size */
+        for (int row = -half; row <= half; row++) {
+            int width = half - abs(row);
+            if (width > 0) {
+                /* Draw from (x + half) to (x + half + width) */
+                SDL_RenderDrawLine(renderer, x + half, y + row, x + half + width, y + row);
+            }
         }
     }
 }
@@ -407,25 +408,18 @@ int main(int argc, char *argv[])
         SDL_SetRenderDrawColor(renderer, 100, 200, 100, 255);
         render_arrow(renderer, win_width - 20 - arrow_size, arrow_y, arrow_size, 1);
 
-        /* Bottom instructions */
-        SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-        SDL_Rect left_hint = {10, win_height - 30, 120, 20};
-        SDL_Rect right_hint = {win_width - 130, win_height - 30, 120, 20};
-        SDL_Rect skip_hint = {win_width / 2 - 60, win_height - 30, 120, 20};
+        /* Bottom instructions with text */
+        int text_y = win_height - 25;
+        int text_scale = 2;
 
-        /* Draw hint backgrounds */
-        SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
-        SDL_RenderFillRect(renderer, &left_hint);
-        SDL_RenderFillRect(renderer, &right_hint);
-        SDL_RenderFillRect(renderer, &skip_hint);
-
-        /* Draw borders */
         SDL_SetRenderDrawColor(renderer, 200, 100, 100, 255);
-        SDL_RenderDrawRect(renderer, &left_hint);
-        SDL_SetRenderDrawColor(renderer, 100, 200, 100, 255);
-        SDL_RenderDrawRect(renderer, &right_hint);
+        render_text(renderer, "<- LEFT", 15, text_y, text_scale);
+
         SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-        SDL_RenderDrawRect(renderer, &skip_hint);
+        render_text(renderer, "SKIP: DOWN", win_width / 2 - 60, text_y, text_scale);
+
+        SDL_SetRenderDrawColor(renderer, 100, 200, 100, 255);
+        render_text(renderer, "RIGHT ->", win_width - 130, text_y, text_scale);
 
         /* Progress bar */
         int progress_width = win_width - 20;
