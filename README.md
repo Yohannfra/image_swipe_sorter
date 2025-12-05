@@ -2,6 +2,8 @@
 
 A fast, keyboard-driven image sorting tool built with SDL2. Quickly sort through large collections of images by swiping them into two categories using arrow keys.
 
+![Screenshot](.github/screenshots/screenshot_image_swipe_sorter.png)
+
 ## Features
 
 - **Fast sorting workflow** - Sort images with single keypresses
