@@ -65,6 +65,16 @@ int main(int argc, char *argv[])
     int img_width = 0, img_height = 0;
     int need_load = 1;
 
+    /* Zoom and pan state */
+    float zoom = 1.0f;
+    float pan_x = 0.0f;
+    float pan_y = 0.0f;
+    int dragging = 0;
+    int drag_start_x = 0;
+    int drag_start_y = 0;
+    float drag_start_pan_x = 0.0f;
+    float drag_start_pan_y = 0.0f;
+
     MoveHistory history;
     history_init(&history);
 
@@ -91,6 +101,11 @@ int main(int argc, char *argv[])
                 img_height = surface->h;
                 SDL_FreeSurface(surface);
 
+                /* Reset zoom and pan for new image */
+                zoom = 1.0f;
+                pan_x = 0.0f;
+                pan_y = 0.0f;
+
                 char title[MAX_PATH + 64];
                 snprintf(title, sizeof(title), "Image Sorter - %d/%d - %s", images.current + 1, images.count,
                     strrchr(images.paths[images.current], '/') + 1);
@@ -113,6 +128,57 @@ int main(int argc, char *argv[])
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = 0;
+            } else if (event.type == SDL_MOUSEWHEEL) {
+                /* Zoom with mouse wheel */
+                if (current_texture) {
+                    float old_zoom = zoom;
+                    if (event.wheel.y > 0) {
+                        zoom *= 1.2f;
+                    } else if (event.wheel.y < 0) {
+                        zoom /= 1.2f;
+                    }
+                    /* Clamp zoom level */
+                    if (zoom < 0.1f)
+                        zoom = 0.1f;
+                    if (zoom > 20.0f)
+                        zoom = 20.0f;
+
+                    /* Zoom towards mouse cursor */
+                    int mouse_x, mouse_y;
+                    SDL_GetMouseState(&mouse_x, &mouse_y);
+                    int win_width, win_height;
+                    SDL_GetWindowSize(window, &win_width, &win_height);
+
+                    /* Adjust pan to keep the point under cursor stationary */
+                    float center_x = win_width / 2.0f + pan_x;
+                    float center_y = win_height / 2.0f + pan_y;
+                    float dx = mouse_x - center_x;
+                    float dy = mouse_y - center_y;
+                    pan_x += dx * (1.0f - zoom / old_zoom);
+                    pan_y += dy * (1.0f - zoom / old_zoom);
+                }
+            } else if (event.type == SDL_MOUSEBUTTONDOWN) {
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    dragging = 1;
+                    drag_start_x = event.button.x;
+                    drag_start_y = event.button.y;
+                    drag_start_pan_x = pan_x;
+                    drag_start_pan_y = pan_y;
+                } else if (event.button.button == SDL_BUTTON_MIDDLE) {
+                    /* Middle click to reset zoom/pan */
+                    zoom = 1.0f;
+                    pan_x = 0.0f;
+                    pan_y = 0.0f;
+                }
+            } else if (event.type == SDL_MOUSEBUTTONUP) {
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    dragging = 0;
+                }
+            } else if (event.type == SDL_MOUSEMOTION) {
+                if (dragging) {
+                    pan_x = drag_start_pan_x + (event.motion.x - drag_start_x);
+                    pan_y = drag_start_pan_y + (event.motion.y - drag_start_y);
+                }
             } else if (event.type == SDL_KEYDOWN) {
                 switch (event.key.keysym.sym) {
                     case SDLK_ESCAPE:
@@ -168,22 +234,26 @@ int main(int argc, char *argv[])
         SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
         SDL_RenderClear(renderer);
 
-        /* Draw image centered and scaled to fit */
+        /* Draw image centered and scaled to fit, with zoom and pan */
         if (current_texture) {
             int margin = 80;
             int available_width = win_width - margin * 2;
             int available_height = win_height - margin;
 
+            /* Base scale to fit image in window */
             float scale_x = (float)available_width / img_width;
             float scale_y = (float)available_height / img_height;
-            float scale = (scale_x < scale_y) ? scale_x : scale_y;
-            if (scale > 1.0f)
-                scale = 1.0f;
+            float base_scale = (scale_x < scale_y) ? scale_x : scale_y;
+            if (base_scale > 1.0f)
+                base_scale = 1.0f;
 
-            int render_width = (int)(img_width * scale);
-            int render_height = (int)(img_height * scale);
-            int render_x = (win_width - render_width) / 2;
-            int render_y = (win_height - render_height) / 2;
+            /* Apply zoom */
+            float final_scale = base_scale * zoom;
+
+            int render_width = (int)(img_width * final_scale);
+            int render_height = (int)(img_height * final_scale);
+            int render_x = (int)((win_width - render_width) / 2.0f + pan_x);
+            int render_y = (int)((win_height - render_height) / 2.0f + pan_y);
 
             SDL_Rect dest = {render_x, render_y, render_width, render_height};
             SDL_RenderCopy(renderer, current_texture, NULL, &dest);
