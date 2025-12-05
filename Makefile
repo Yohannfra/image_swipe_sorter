@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -O2 -Isrc
 LDFLAGS = -lSDL2 -lSDL2_image
 
-TARGET = image_sorter
+TARGET = image_swipe_sorter
 SRCDIR = src
 OBJDIR = obj
 
