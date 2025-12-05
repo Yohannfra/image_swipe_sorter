@@ -1,6 +1,7 @@
 #include "files.h"
 
 #include <dirent.h>
+#include <getopt.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,33 +46,40 @@ static void print_help(const char *prog_name)
     printf("  ESC / Q              Quit\n");
 }
 
-int parse_args(int argc, char *const argv[const], Config *config)
+int parse_args(int argc, char *argv[], Config *config)
 {
     memset(config, 0, sizeof(Config));
 
-    /* Check for help flag first */
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            print_help(argv[0]);
-            exit(0);
+    static struct option long_options[] = {{"left-dir", required_argument, 0, 'l'},
+        {"right-dir", required_argument, 0, 'r'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "hl:r:", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'l':
+                strncpy(config->left_dir, optarg, MAX_PATH - 1);
+                break;
+            case 'r':
+                strncpy(config->right_dir, optarg, MAX_PATH - 1);
+                break;
+            case 'h':
+                print_help(argv[0]);
+                exit(0);
+            default:
+                fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+                return -1;
         }
     }
 
-    if (argc < 2) {
+    /* Expect exactly one positional argument: source_dir */
+    if (optind >= argc) {
+        fprintf(stderr, "Error: Missing source directory\n");
         fprintf(stderr, "Usage: %s <source_dir> --left-dir=<path> --right-dir=<path>\n", argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return -1;
     }
 
-    strncpy(config->source_dir, argv[1], MAX_PATH - 1);
-
-    for (int i = 2; i < argc; i++) {
-        if (strncmp(argv[i], "--left-dir=", 11) == 0) {
-            strncpy(config->left_dir, argv[i] + 11, MAX_PATH - 1);
-        } else if (strncmp(argv[i], "--right-dir=", 12) == 0) {
-            strncpy(config->right_dir, argv[i] + 12, MAX_PATH - 1);
-        }
-    }
+    strncpy(config->source_dir, argv[optind], MAX_PATH - 1);
 
     if (config->left_dir[0] == '\0' || config->right_dir[0] == '\0') {
         fprintf(stderr, "Error: Both --left-dir and --right-dir are required\n");
