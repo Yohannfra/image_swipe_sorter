@@ -22,6 +22,46 @@ typedef struct {
     char right_dir[MAX_PATH];
 } Config;
 
+#define HISTORY_SIZE 50
+
+typedef struct {
+    char src_path[MAX_PATH];  /* Original path (in source dir) */
+    char dest_path[MAX_PATH]; /* Where it was moved to */
+    int image_index;          /* Index in images list */
+} MoveEntry;
+
+typedef struct {
+    MoveEntry entries[HISTORY_SIZE];
+    int head;  /* Next write position */
+    int count; /* Number of valid entries */
+} MoveHistory;
+
+static void history_init(MoveHistory *h)
+{
+    h->head = 0;
+    h->count = 0;
+}
+
+static void history_push(MoveHistory *h, const char *src, const char *dest, int index)
+{
+    strncpy(h->entries[h->head].src_path, src, MAX_PATH - 1);
+    strncpy(h->entries[h->head].dest_path, dest, MAX_PATH - 1);
+    h->entries[h->head].image_index = index;
+    h->head = (h->head + 1) % HISTORY_SIZE;
+    if (h->count < HISTORY_SIZE)
+        h->count++;
+}
+
+static int history_pop(MoveHistory *h, MoveEntry *out)
+{
+    if (h->count == 0)
+        return -1;
+    h->head = (h->head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+    h->count--;
+    *out = h->entries[h->head];
+    return 0;
+}
+
 static int is_image_file(const char *filename)
 {
     const char *ext = strrchr(filename, '.');
@@ -78,7 +118,7 @@ static void free_image_list(ImageList *list)
     free(list->paths);
 }
 
-static int move_file(const char *src, const char *dest_dir)
+static int move_file(const char *src, const char *dest_dir, char *out_dest_path)
 {
     char *src_copy = strdup(src);
     char *filename = basename(src_copy);
@@ -93,7 +133,20 @@ static int move_file(const char *src, const char *dest_dir)
     }
 
     printf("Moved: %s -> %s\n", filename, dest_dir);
+    if (out_dest_path) {
+        strncpy(out_dest_path, dest_path, MAX_PATH - 1);
+    }
     free(src_copy);
+    return 0;
+}
+
+static int undo_move(MoveEntry *entry)
+{
+    if (rename(entry->dest_path, entry->src_path) != 0) {
+        fprintf(stderr, "Error: Failed to undo move '%s'\n", entry->dest_path);
+        return -1;
+    }
+    printf("Undo: restored %s\n", entry->src_path);
     return 0;
 }
 
@@ -118,7 +171,9 @@ static const unsigned char font_5x7[128][7] = {
     ['R'] = {0x1E, 0x11, 0x1E, 0x14, 0x12, 0x11, 0x00},
     ['S'] = {0x0E, 0x10, 0x0E, 0x01, 0x01, 0x0E, 0x00},
     ['T'] = {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x00},
+    ['U'] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x0E, 0x00},
     ['W'] = {0x11, 0x11, 0x11, 0x15, 0x15, 0x0A, 0x00},
+    ['B'] = {0x1E, 0x11, 0x1E, 0x11, 0x11, 0x1E, 0x00},
     ['/'] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00},
     [':'] = {0x00, 0x04, 0x00, 0x00, 0x04, 0x00, 0x00},
     ['0'] = {0x0E, 0x13, 0x15, 0x19, 0x11, 0x0E, 0x00},
@@ -306,12 +361,19 @@ int main(int argc, char *argv[])
     int img_width = 0, img_height = 0;
     int need_load = 1;
 
+    MoveHistory history;
+    history_init(&history);
+
     int running = 1;
     SDL_Event event;
 
-    while (running && images.current < images.count) {
+    while (running) {
+        /* Allow undo even when all images processed */
+        if (images.current >= images.count && history.count == 0) {
+            break;
+        }
         /* Load current image if needed */
-        if (need_load) {
+        if (need_load && images.current < images.count) {
             if (current_texture) {
                 SDL_DestroyTexture(current_texture);
                 current_texture = NULL;
@@ -335,6 +397,14 @@ int main(int argc, char *argv[])
                 continue;
             }
             need_load = 0;
+        } else if (need_load && images.current >= images.count) {
+            /* All images processed - clear texture and update title */
+            if (current_texture) {
+                SDL_DestroyTexture(current_texture);
+                current_texture = NULL;
+            }
+            SDL_SetWindowTitle(window, "Image Sorter - Done! (SPACE to undo)");
+            need_load = 0;
         }
 
         while (SDL_PollEvent(&event)) {
@@ -346,24 +416,40 @@ int main(int argc, char *argv[])
                     case SDLK_q:
                         running = 0;
                         break;
-                    case SDLK_LEFT:
-                        if (move_file(images.paths[images.current], config.left_dir) == 0) {
+                    case SDLK_LEFT: {
+                        char dest_path[MAX_PATH];
+                        if (move_file(images.paths[images.current], config.left_dir, dest_path) == 0) {
+                            history_push(&history, images.paths[images.current], dest_path, images.current);
                             images.current++;
                             need_load = 1;
                         }
                         break;
-                    case SDLK_RIGHT:
-                        if (move_file(images.paths[images.current], config.right_dir) == 0) {
+                    }
+                    case SDLK_RIGHT: {
+                        char dest_path[MAX_PATH];
+                        if (move_file(images.paths[images.current], config.right_dir, dest_path) == 0) {
+                            history_push(&history, images.paths[images.current], dest_path, images.current);
                             images.current++;
                             need_load = 1;
                         }
                         break;
+                    }
                     case SDLK_DOWN:
-                    case SDLK_SPACE:
                         /* Skip without moving */
                         images.current++;
                         need_load = 1;
                         break;
+                    case SDLK_SPACE: {
+                        /* Undo last move */
+                        MoveEntry entry;
+                        if (history_pop(&history, &entry) == 0) {
+                            if (undo_move(&entry) == 0) {
+                                images.current = entry.image_index;
+                                need_load = 1;
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -416,7 +502,7 @@ int main(int argc, char *argv[])
         render_text(renderer, "<- LEFT", 15, text_y, text_scale);
 
         SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-        render_text(renderer, "SKIP: DOWN", win_width / 2 - 60, text_y, text_scale);
+        render_text(renderer, "DOWN:SKIP  SPACE:UNDO", win_width / 2 - 120, text_y, text_scale);
 
         SDL_SetRenderDrawColor(renderer, 100, 200, 100, 255);
         render_text(renderer, "RIGHT ->", win_width - 130, text_y, text_scale);
