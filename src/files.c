@@ -24,12 +24,42 @@ static int is_image_file(const char *filename)
     return 0;
 }
 
+static void print_help(const char *prog_name)
+{
+    printf("Usage: %s <source_dir> --left-dir=<path> --right-dir=<path>\n\n", prog_name);
+    printf("A simple image sorter that lets you quickly categorize images into two folders.\n\n");
+    printf("Arguments:\n");
+    printf("  <source_dir>         Directory containing images to sort\n");
+    printf("  --left-dir=<path>    Directory for left-swiped images (created if missing)\n");
+    printf("  --right-dir=<path>   Directory for right-swiped images (created if missing)\n\n");
+    printf("Options:\n");
+    printf("  -h, --help           Show this help message and exit\n\n");
+    printf("Controls:\n");
+    printf("  LEFT arrow           Move image to left directory\n");
+    printf("  RIGHT arrow          Move image to right directory\n");
+    printf("  DOWN arrow           Skip current image\n");
+    printf("  SPACE                Undo last move\n");
+    printf("  Mouse wheel          Zoom in/out\n");
+    printf("  Left click + drag    Pan image\n");
+    printf("  Middle click         Reset zoom/pan\n");
+    printf("  ESC / Q              Quit\n");
+}
+
 int parse_args(int argc, char *const argv[const], Config *config)
 {
     memset(config, 0, sizeof(Config));
 
+    /* Check for help flag first */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_help(argv[0]);
+            exit(0);
+        }
+    }
+
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <source_dir> --left-dir=<path> --right-dir=<path>\n", argv[0]);
+        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return -1;
     }
 
